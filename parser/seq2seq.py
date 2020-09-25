@@ -100,15 +100,13 @@ import math
 
 import torch
 import torch.nn as nn
-from torch import optim
+from torch.optim import SGD, Adam
 import torch.nn.functional as F
 
 import matplotlib.pyplot as plt
 plt.switch_backend('agg')
 import matplotlib.ticker as ticker
 import numpy as np
-
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SOS_token = 0
 EOS_token = 1
@@ -132,6 +130,12 @@ eng_prefixes = (
     "they are", "they re "
 )
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+
+def getDevice():
+    return device
+
 
 class Lang:
     def __init__(self, name):
@@ -140,9 +144,13 @@ class Lang:
         self.word2count = {}
         self.index2word = {0: "SOS", 1: "EOS"}
         self.n_words = 2  # Count SOS and EOS
+        self.max_length = 0
 
     def addSentence(self, sentence):
-        for word in sentence.split(' '):
+        words = sentence.split(' ')
+        if len(words) > self.max_length:
+            self.max_length = len(words)
+        for word in words:
             self.addWord(word)
 
     def addWord(self, word):
@@ -298,7 +306,7 @@ def tensorFromSentence(lang, sentence):
     return torch.tensor(indexes, dtype=torch.long, device=device).view(-1, 1)
 
 
-def tensorsFromPair(pair):
+def tensorsFromPair(input_lang, output_lang, pair):
     input_tensor = tensorFromSentence(input_lang, pair[0])
     target_tensor = tensorFromSentence(output_lang, pair[1])
     return (input_tensor, target_tensor)
@@ -392,16 +400,18 @@ def showPlot(points):
     plt.plot(points)
 
 
-def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, learning_rate=0.01):
+def trainIters(training_pairs, encoder, decoder, n_iters, print_every=1000, plot_every=100, optim='sgd', learning_rate=0.01, max_length=MAX_LENGTH):
     start = time.time()
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
 
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    training_pairs = [tensorsFromPair(random.choice(pairs))
-                      for i in range(n_iters)]
+    if optim == 'sgd':
+        encoder_optimizer = SGD(encoder.parameters(), lr=learning_rate)
+        decoder_optimizer = SGD(decoder.parameters(), lr=learning_rate)
+    elif optim == 'adam':
+        encoder_optimizer = Adam(encoder.parameters(), lr=learning_rate)
+        decoder_optimizer = Adam(decoder.parameters(), lr=learning_rate)
     criterion = nn.NLLLoss()
 
     for iter in range(1, n_iters + 1):
@@ -410,7 +420,7 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
         target_tensor = training_pair[1]
 
         loss = train(input_tensor, target_tensor, encoder,
-                     decoder, encoder_optimizer, decoder_optimizer, criterion)
+                     decoder, encoder_optimizer, decoder_optimizer, criterion, max_length=max_length)
         print_loss_total += loss
         plot_loss_total += loss
 
@@ -428,7 +438,7 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100, lear
     showPlot(plot_losses)
 
 
-def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
+def evaluate(encoder, decoder, sentence, input_lang, output_lang, max_length=MAX_LENGTH):
     """ Evaluation is mostly the same as training, but there are no targets so
     we simply feed the decoder's predictions back to itself for each step.
     Every time it predicts a word we add it to the output string, and if it
@@ -470,7 +480,7 @@ def evaluate(encoder, decoder, sentence, max_length=MAX_LENGTH):
         return decoded_words, decoder_attentions[:di + 1]
 
 
-def evaluateRandomly(encoder, decoder, n=10):
+def evaluateRandomly(pairs, encoder, decoder, n=10):
     """ We can evaluate random sentences from the training set and print out the
     input, target, and output to make some subjective quality judgements:
     """
@@ -478,7 +488,7 @@ def evaluateRandomly(encoder, decoder, n=10):
         pair = random.choice(pairs)
         print('>', pair[0])
         print('=', pair[1])
-        output_words, attentions = evaluate(encoder, decoder, pair[0])
+        output_words, attentions = evaluate(encoder, decoder, pair[0], input_lang, output_lang)
         output_sentence = ' '.join(output_words)
         print('<', output_sentence)
         print('')
@@ -505,7 +515,7 @@ def showAttention(input_sentence, output_words, attentions):
 
 def evaluateAndShowAttention(input_sentence):
     output_words, attentions = evaluate(
-        encoder1, attn_decoder1, input_sentence)
+        encoder1, attn_decoder1, input_sentence, input_lang, output_lang)
     print('input =', input_sentence)
     print('output =', ' '.join(output_words))
     showAttention(input_sentence, output_words, attentions)
@@ -523,8 +533,10 @@ if __name__ == '__main__':
     encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
     attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words, dropout_p=0.1).to(device)
 
-    trainIters(encoder1, attn_decoder1, 75000, print_every=5000)
-    evaluateRandomly(encoder1, attn_decoder1)
+    n_iters = 75000
+    training_pairs = [tensorsFromPair(input_lang, output_lang, random.choice(pairs)) for _ in range(n_iters)]
+    trainIters(training_pairs, encoder1, attn_decoder1, n_iters, print_every=5000)
+    evaluateRandomly(pairs, encoder1, attn_decoder1)
 
     # A useful property of the attention mechanism is its highly interpretable
     # outputs. Because it is used to weight specific encoder outputs of the

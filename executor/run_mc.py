@@ -29,6 +29,8 @@ if args.use_in != 0:
 question_path = 'data/validation.json'
 if args.n_progs == 'all':
     program_path = 'data/parsed_programs/mc_allq_allc.json'
+elif args.n_progs == 'reproduced':
+    program_path = 'parse_results/mc_val_reproduced.json'
 else:
     program_path = 'data/parsed_programs/mc_{}q_{}c_val_new.json'.format(args.n_progs, int(args.n_progs)*4)
 

@@ -25,16 +25,12 @@ pip install -r requirements
 ```
 
 
-
 ## Code & Data Preparation
 
 ### Get the code
 <!-- [[back to top](#CLEVRER)] -->
 
-Use git to clone this repository
-```
-git clone https://github.com/chuangg/CLEVRER.git
-```
+Use git to clone this repository.
 The code mainly consists of two parts, including the **dynamics predictor** and the **program executor**. 
 - *dynamics predictor*: we provide the implementation of the model in folder `temporal-reasoning`.
 - *programe executor*: the code is provided in folder `executor`. 
@@ -108,6 +104,25 @@ Generate predicted answers on test set by running
 python get_results.py
 ```
 An answer prediction file for test set (`nsdr_pred.json`) will be generated, and you can get the evaluation metric results by uploading this file to the evaluation server [here][evalai].
+
+## Reproduced Parsers (Experimental)
+
+Question and choice parsers for the multiple-choice questions are reproduced in this forked repository using GRU based seq2seq attention model.
+The training and inference codes can be found in `parser`.
+Train the parsers with `executor/data/train.json` by running
+```
+python mc_parser.py --phase train_question
+python mc_parser.py --phase train_choice
+```
+Parse the validation data `executor/data/validation.json` by running
+```
+python mc_parser.py --phase inference
+```
+and get the parsed programs the folder `executor/parse_results` for the evaluation:
+```
+python run_mc.py --n_progs reproduced
+```
+
 
 ## Training/Testing the dynamics predictor
 [[back to top](#CLEVRER)]

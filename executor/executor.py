@@ -168,7 +168,8 @@ class Executor():
             'unseen_events': {'func': self.unseen_events, 'nargs': 0},
             'all_events': {'func': self.all_events, 'nargs': 0},
             'counterfact_events': {'func': self.counterfact_events, 'nargs': 1},
-            'filter_counterfact': {'func': self.filter_counterfact, 'nargs': 2},
+            'filter_counterfact': {'func': self.filter_counterfact, 'nargs': 2}, # mismatch the func name in ground truth
+            'get_counterfact': {'func': self.filter_counterfact, 'nargs': 2},
         }
 
     # Module definitions
